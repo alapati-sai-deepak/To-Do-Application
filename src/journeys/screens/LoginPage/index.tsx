@@ -13,6 +13,8 @@ export default function LoginPage({ navigation }: any) {
     /^(?=.*[!@#$%^&*])(?=.*\d).{6,}$/.test(password);
 
   const handleAuth = async () => {
+    console.log("Email",email);
+    console.log("Password",password);
     if (!validateEmail(email)) return Alert.alert('Invalid email (must end with @gmail.com)');
     if (!validatePassword(password)) return Alert.alert('Password must be 6+ chars, include special char & number');
 
@@ -53,7 +55,8 @@ export default function LoginPage({ navigation }: any) {
         onChangeText={setPassword}
         secureTextEntry
       />
-
+      
+    
       <TouchableOpacity style={styles.button} onPress={handleAuth}>
         <Text style={styles.buttonText}>{isSignup ? 'Sign Up' : 'Login'}</Text>
       </TouchableOpacity>
@@ -63,6 +66,7 @@ export default function LoginPage({ navigation }: any) {
           {isSignup ? 'Already have an account? Login' : "Don't have an account? Sign up"}
         </Text>
       </TouchableOpacity>
+    
     </View>
   );
 }

@@ -1,4 +1,10 @@
-import React, { useLayoutEffect, useState, useEffect } from 'react';
+import React, {
+  useLayoutEffect,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from 'react';
 import {
   View,
   Text,
@@ -11,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import HeaderIcons from '../../../components/Header';
 import styles from './index.styles';
 import SvgComponent from '../../../components/svgs/CloseIcon';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
 type Event = {
   id: string;
@@ -19,34 +25,44 @@ type Event = {
   date: string;
 };
 
+const EventItem = React.memo(
+  ({ item, onDelete }: { item: Event; onDelete: (id: string) => void }) => (
+    <View style={styles.eventItem}>
+      <Text>{item.name} ({item.date})</Text>
+      <TouchableOpacity onPress={() => onDelete(item.id)}>
+        <SvgComponent />
+      </TouchableOpacity>
+    </View>
+  )
+);
+
 export default function EventsScreen({ navigation }: any) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [username, setUsername] = useState('');
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [isEditingUsername, setIsEditingUsername] = useState(false);
 
-  const loadEvents = async (date: Date | null) => {
-    if (!date) {
-      setEvents([]);
-      return;
-    }
+  // Load all events once
+  const loadEvents = async () => {
     const stored = await AsyncStorage.getItem('events');
-    const allEvents = stored ? JSON.parse(stored) : [];
-    const dateStr = date.toISOString().split('T')[0];
-    const filtered = allEvents.filter((event: Event) => event.date === dateStr);
-    setEvents(filtered);
+    const events = stored ? JSON.parse(stored) : [];
+    setAllEvents(events);
   };
 
   const deleteEvent = async (id: string) => {
-    const stored = await AsyncStorage.getItem('events');
-    const allEvents = stored ? JSON.parse(stored) : [];
     const updated = allEvents.filter((event: Event) => event.id !== id);
     await AsyncStorage.setItem('events', JSON.stringify(updated));
-    if (selectedDate) loadEvents(selectedDate);
+    setAllEvents(updated);
   };
+
+  const filteredEvents = useMemo(() => {
+    if (!selectedDate) return [];
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    return allEvents.filter((event) => event.date === dateStr);
+  }, [allEvents, selectedDate]);
 
   const loadUser = async () => {
     const storedUsername = await AsyncStorage.getItem('username');
@@ -54,10 +70,10 @@ export default function EventsScreen({ navigation }: any) {
   };
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       setSelectedDate(null);
-      setEvents([]);
       setIsDrawerOpen(false);
+      loadEvents();
       loadUser();
     }, [])
   );
@@ -69,7 +85,6 @@ export default function EventsScreen({ navigation }: any) {
           selectedDate={selectedDate ?? new Date()}
           onDateChange={(date: Date) => {
             setSelectedDate(date);
-            loadEvents(date);
           }}
           onProfilePress={() => {
             setIsDrawerOpen(true);
@@ -81,8 +96,6 @@ export default function EventsScreen({ navigation }: any) {
   }, [navigation, selectedDate]);
 
   const handleSaveProfile = async () => {
-    
-    
     if (newUsername.trim()) {
       await AsyncStorage.setItem('username', newUsername.trim());
       setUsername(newUsername.trim());
@@ -98,37 +111,31 @@ export default function EventsScreen({ navigation }: any) {
     setIsDrawerOpen(false);
   };
 
-const handleLogout = async () => {
-  await AsyncStorage.removeItem('username');
-  await AsyncStorage.removeItem('password');
-  setIsDrawerOpen(false);
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('username');
+    await AsyncStorage.removeItem('password');
+    setIsDrawerOpen(false);
 
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'LoginPage' }],
-  });
-};
-
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'LoginPage' }],
+    });
+  };
 
   return (
     <View style={styles.container}>
       {!selectedDate ? (
         <Text style={styles.noDateText}>Please select a date to view events.</Text>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <Text style={styles.noEventsText}>
           No events for {selectedDate.toDateString()}
         </Text>
       ) : (
         <FlatList
-          data={events}
+          data={filteredEvents}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={styles.eventItem}>
-              <Text>{item.name} ({item.date})</Text>
-              <TouchableOpacity onPress={() => deleteEvent(item.id)}>
-                <SvgComponent />
-              </TouchableOpacity>
-            </View>
+            <EventItem item={item} onDelete={deleteEvent} />
           )}
         />
       )}
@@ -145,11 +152,11 @@ const handleLogout = async () => {
                   style={styles.usernameInput}
                   value={newUsername}
                   onChangeText={setNewUsername}
-                  placeholder="Enter Username"
+                  placeholder="Enter new username"
                 />
               ) : (
                 <>
-                  <Text style={styles.usernameText}>User Name: {username}</Text>
+                  <Text style={styles.usernameText}>Username: {username}</Text>
                   <TouchableOpacity
                     onPress={() => {
                       setNewUsername(username);
